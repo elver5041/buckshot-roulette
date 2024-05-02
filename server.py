@@ -4,14 +4,15 @@
 import os
 from dotenv import load_dotenv
 import random
-from socket import socket, AF_INET, SOCK_DGRAM
+import socket
+from socket import AF_INET, SOCK_STREAM
 import sys
 from _thread import start_new_thread
 
 load_dotenv()
 
 SERVER = os.getenv("SERVER_IP") or "127.0.0.1"
-PORT = "5555"
+PORT = 5555
 
 INVENTORY_SPACE = 8
 BLANK = '/'
@@ -95,34 +96,36 @@ class GameSession:
         yield NotImplementedError
 
 def game_thread(conn) -> None:
+    conn.send(str.encode("connected"))
     while True: 
         try:
             data = conn.recv(2048)
             reply = data.decode("utf-8")
 
             if not data:
-                print(f"[{conn}] disconnected")
+                print(f"[{conn.fileno()}] disconnected safely")
                 break
             print(reply)
             conn.sendall(str.encode(reply))
         except:
-            print(f"[{conn}] xd error connexio")
-    print(f"[{conn}] lost connection for")
+            print(f"[{conn.fileno()}] xd error connexio")
+    print(f"[{conn.fileno()}] closed connection")
     conn.close()
 
 def main() -> None:
-    s = socket(AF_INET, SOCK_DGRAM)
+    s = socket.socket(AF_INET, SOCK_STREAM)
     try:
         s.bind((SERVER, PORT))
     except socket.error as e:
         str(e)
     s.listen(2)
+    print("server online")
 
     while True:
         conn, addr = s.accept()
-        print(f"[{conn}] accepted ip:",addr)
+        print(f"[{conn.fileno()}] accepted ip:",addr)
         start_new_thread(game_thread, (conn,))
 
-
+main()
 
 game = GameSession()
