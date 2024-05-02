@@ -1,4 +1,17 @@
+# https://www.youtube.com/watch?v=qbL4hPWcnFM&list=PLzMcBGfZo4-kR7Rh-7JCVDN8lm3Utumvq&index=3
+# https://youtu.be/qbL4hPWcnFM?si=6m96HMcMhVkRRjEg&t=307
+
+import os
+from dotenv import load_dotenv
 import random
+from socket import socket, AF_INET, SOCK_DGRAM
+import sys
+from _thread import start_new_thread
+
+load_dotenv()
+
+SERVER = os.getenv("SERVER_IP") or "127.0.0.1"
+PORT = "5555"
 
 INVENTORY_SPACE = 8
 BLANK = '/'
@@ -68,7 +81,7 @@ class Round:
         for i in self.shells:
             n_items = min(self.items_per_round, 8-len(self.items[0]))
             for i in range(n_items):
-                
+                yield NotImplementedError
             v = input()
             print(i)
 
@@ -81,5 +94,35 @@ class GameSession:
         self.r += 1
         yield NotImplementedError
 
-game = GameSession()
+def game_thread(conn) -> None:
+    while True: 
+        try:
+            data = conn.recv(2048)
+            reply = data.decode("utf-8")
 
+            if not data:
+                print(f"[{conn}] disconnected")
+                break
+            print(reply)
+            conn.sendall(str.encode(reply))
+        except:
+            print(f"[{conn}] xd error connexio")
+    print(f"[{conn}] lost connection for")
+    conn.close()
+
+def main() -> None:
+    s = socket(AF_INET, SOCK_DGRAM)
+    try:
+        s.bind((SERVER, PORT))
+    except socket.error as e:
+        str(e)
+    s.listen(2)
+
+    while True:
+        conn, addr = s.accept()
+        print(f"[{conn}] accepted ip:",addr)
+        start_new_thread(game_thread, (conn,))
+
+
+
+game = GameSession()
