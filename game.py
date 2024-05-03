@@ -1,11 +1,10 @@
 import random
-import socket
-from threading import Thread
-from asyncio import Semaphore
+from socket import socket
+from threading import Thread, Condition, Barrier
 
 INVENTORY_SPACE = 8
-BLANK = '/'
-LIVE = '|'
+BLANK = 'B'
+LIVE = 'L'
 
 ITEMS = ['MAGNIFYING_GLASS',
     'CIGARETTE_PACK',
@@ -59,53 +58,59 @@ class Inventory:
 
 
 class Round:
-    def __init__(self, r:int, players: tuple[socket.socket,socket.socket]) -> None:
+    def __init__(self, r:int, players: tuple[socket,socket]) -> None:
         self.players = players
         self.alive: bool = True
         self.round: int = r
+        self.lock: Condition = Condition()
         self.items_per_round: int = min(2*r, 4)
         self.n: int = random.randint(3, 8)
         self.hps: tuple[int, int] = random.randint(3, 8)
         self.inventories: tuple[Inventory,Inventory] = (Inventory(), Inventory())
         self.shells: list[str] = [random.choice([BLANK, LIVE]) for _ in range(self.n)]
-
+        send_to_all(self.players,"".join(self.shells))
         print("".join(self.shells))
         random.shuffle(self.shells)
 
-    def select_items(self, player:socket.socket, items:Inventory, sem:Semaphore):
+    def select_items(self, player:socket, items:Inventory):
         n_items = min(self.items_per_round, INVENTORY_SPACE-len(items))
-        for i in range(n_items):
+        for _ in range(n_items):
             (item, spaces) = items.get_item()
             player.send(f"{item}|{spaces}".encode())
-        sem.release()
-
-    async def play_round(self) -> None:
-        for i in self.shells:
-            threads = []
-            sem = Semaphore(2)
-
-            async with sem:
-                for player, items in zip(self.players, self.inventories):
-                    sem.acquire()
-                    threads.append(Thread(target=self.select_items, args=(player,items,sem)))
-                sem.acquire(2)
-
+            gotten = player.recv(2048).decode()
+            print("sent")
+            pos = int(gotten)
             
-                
-            for i in range(self.n_items):
-                player.get_item()
-                
-            v = input()
+            print(f"[{player.fileno()}] {pos}")
+            items.place_item(item,pos)
+            player.send(str(items).encode())
+
+    def play_round(self) -> None:
+        for i in self.shells:
+            threads: list[Thread] = []
+            for player, items in zip(self.players, self.inventories):
+                t = Thread(target=self.select_items, args=(player,items))
+                threads.append(t)
+                t.start()
+
+            for thread in threads:
+                thread.join()
+
             print(i)
 
+def send_to_all(connections:list[socket], message:str):
+    for connection in connections:
+        connection.send(message.encode())
+
 class GameSession:
-    def __init__(self, p1:socket.socket, p2:socket.socket) -> None:
+    def __init__(self, p1:socket, p2:socket) -> None:
         self.r = 0
         self.players = (p1, p2)
 
     def play_round(self) -> None:
-        round = Round(self.r, self.players)
-        self.r += 1
-        while round.alive:
+        send_to_all(self.players,f"Round {self.r}")
+        self.r += 1 #TODO
+        while True:
+            round = Round(self.r, self.players)
             round.play_round()
             

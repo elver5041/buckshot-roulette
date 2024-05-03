@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import socket
 from socket import AF_INET, SOCK_STREAM
 from threading import Thread
-
+from time import sleep
 from game import GameSession
 
 load_dotenv()
@@ -44,10 +44,21 @@ def main() -> None:
     s.listen(2)
     print("server online")
 
-    while server_active:
+    conns: list[socket.socket] = []
+    while server_active and len(conns)<2:
         conn, addr = s.accept()
+        conn.send(str.encode(str(conn.fileno())))
+        conns.append(conn)
+        
         print(f"[{conn.fileno()}] accepted ip:",addr)
-        Thread(target=game_thread, args=(conn,)).start()
+        #Thread(target=game_thread, args=(conn,)).start()
+    for connection in conns:
+        connection.send("Game found".encode())
+    sleep(0.1)
+    game = GameSession(conns[0],conns[1])
+    print(f"game started between {game.players[0].fileno()} and {game.players[1].fileno()}")
+    game.play_round()
+
 
 mt = Thread(target=main)
 mt.daemon = True
@@ -56,5 +67,3 @@ mt.start()
 while True:
     if input() == "q":
         break
-
-game = GameSession()
