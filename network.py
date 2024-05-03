@@ -9,14 +9,13 @@ class Network:
         load_dotenv()
         self.server = os.getenv("SERVER_IP") or "127.0.0.1"
         self.port = 5555
-        self.addr = (self.server, self.port)
         self.active = True
         id = self.connect()
         print(id)
 
     def connect(self) -> str:
         try:
-            self.client.connect(self.addr)
+            self.client.connect((self.server, self.port))
             return self.client.recv(1024).decode()
         except socket.error as e:
             self.active = False
@@ -33,11 +32,13 @@ class Network:
             print("server not active, message didn't reach it")
             self.active = False
 
-n = Network()
+def main() -> None:
+    n = Network()
+    while n.active:
+        if (inp := input()) == "/q":
+            n.disconnect()
+        else:
+            n.send(inp)
 
-while n.active:
-    if (inp := input()) == "/q":
-        n.disconnect()
-    else:
-        n.send(inp)
-    
+if __name__ == "__main__":
+    main()

@@ -1,4 +1,7 @@
 import random
+import socket
+from threading import Thread
+from asyncio import Semaphore
 
 INVENTORY_SPACE = 8
 BLANK = '/'
@@ -29,6 +32,9 @@ class Inventory:
     def use_item(self, p:int) -> str:
         return self.inventory.pop(p)
 
+    def __len__(self) -> int:
+        return len(self.inventory)
+
     def __str__(self) -> str:
         stri = ["╔", "║", "╠", "║", "╚"]
         for i in range(0,INVENTORY_SPACE,2):
@@ -53,30 +59,53 @@ class Inventory:
 
 
 class Round:
-    def __init__(self, r:int) -> None:
+    def __init__(self, r:int, players: tuple[socket.socket,socket.socket]) -> None:
+        self.players = players
         self.alive: bool = True
         self.round: int = r
         self.items_per_round: int = min(2*r, 4)
         self.n: int = random.randint(3, 8)
-        self.items: tuple[Inventory,Inventory] = (Inventory(), Inventory())
+        self.hps: tuple[int, int] = random.randint(3, 8)
+        self.inventories: tuple[Inventory,Inventory] = (Inventory(), Inventory())
         self.shells: list[str] = [random.choice([BLANK, LIVE]) for _ in range(self.n)]
 
         print("".join(self.shells))
         random.shuffle(self.shells)
 
-    def play_round(self) -> None:
+    def select_items(self, player:socket.socket, items:Inventory, sem:Semaphore):
+        n_items = min(self.items_per_round, INVENTORY_SPACE-len(items))
+        for i in range(n_items):
+            (item, spaces) = items.get_item()
+            player.send(f"{item}|{spaces}".encode())
+        sem.release()
+
+    async def play_round(self) -> None:
         for i in self.shells:
-            n_items = min(self.items_per_round, 8-len(self.items[0]))
-            for i in range(n_items):
-                yield NotImplementedError
+            threads = []
+            sem = Semaphore(2)
+
+            async with sem:
+                for player, items in zip(self.players, self.inventories):
+                    sem.acquire()
+                    threads.append(Thread(target=self.select_items, args=(player,items,sem)))
+                sem.acquire(2)
+
+            
+                
+            for i in range(self.n_items):
+                player.get_item()
+                
             v = input()
             print(i)
 
 class GameSession:
-    def __init__(self) -> None:
+    def __init__(self, p1:socket.socket, p2:socket.socket) -> None:
         self.r = 0
+        self.players = (p1, p2)
 
     def play_round(self) -> None:
-        lol = Round(self.r)
+        round = Round(self.r, self.players)
         self.r += 1
-        yield NotImplementedError
+        while round.alive:
+            round.play_round()
+            
