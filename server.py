@@ -7,7 +7,7 @@ import random
 import socket
 from socket import AF_INET, SOCK_STREAM
 import sys
-from _thread import start_new_thread
+from threading import Thread
 
 load_dotenv()
 
@@ -27,6 +27,8 @@ ITEMS = ['MAGNIFYING_GLASS',
     'INVERTER',
     'INJECTION_OF_ADRENALINE',
     'BOX_OF_EXPIRED_MEDICINE']
+
+server_active = True
 
 class Inventory:
     def __init__(self) -> None:
@@ -97,19 +99,21 @@ class GameSession:
 
 def game_thread(conn) -> None:
     conn.send(str.encode("connected"))
+    id = conn.fileno()
     while True: 
         try:
-            data = conn.recv(2048)
+            data = conn.recv(1024)
             reply = data.decode("utf-8")
 
             if not data:
-                print(f"[{conn.fileno()}] disconnected safely")
+                print(f"[{id}] disconnected safely")
                 break
-            print(reply)
+            print(f"[{id}] said: '{reply}'")
             conn.sendall(str.encode(reply))
-        except:
-            print(f"[{conn.fileno()}] xd error connexio")
-    print(f"[{conn.fileno()}] closed connection")
+        except socket.error as e:
+            print(f"[{id}] {str(e)}")
+            break
+    print(f"[{id}] closed connection")
     conn.close()
 
 def main() -> None:
@@ -121,11 +125,17 @@ def main() -> None:
     s.listen(2)
     print("server online")
 
-    while True:
+    while server_active:
         conn, addr = s.accept()
         print(f"[{conn.fileno()}] accepted ip:",addr)
-        start_new_thread(game_thread, (conn,))
+        Thread(target=game_thread, args=(conn,)).start()
 
-main()
+mt = Thread(target=main)
+mt.daemon = True
+mt.start()
+
+while True:
+    if input() == "q":
+        break
 
 game = GameSession()
