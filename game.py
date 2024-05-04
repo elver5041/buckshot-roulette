@@ -1,6 +1,6 @@
 import random
 from socket import socket
-from threading import Thread, Condition, Barrier
+from threading import Thread
 
 INVENTORY_SPACE = 8
 BLANK = 'B'
@@ -62,7 +62,6 @@ class Round:
         self.players = players
         self.alive: bool = True
         self.round: int = r
-        self.lock: Condition = Condition()
         self.items_per_round: int = min(2*r, 4)
         self.n: int = random.randint(3, 8)
         self.hps: tuple[int, int] = random.randint(3, 8)
@@ -78,10 +77,8 @@ class Round:
             (item, spaces) = items.get_item()
             player.send(f"{item}|{spaces}".encode())
             gotten = player.recv(2048).decode()
-            print("sent")
             pos = int(gotten)
-            
-            print(f"[{player.fileno()}] {pos}")
+            #print(f"[{player.fileno()}] {pos}")
             items.place_item(item,pos)
             player.send(str(items).encode())
 
