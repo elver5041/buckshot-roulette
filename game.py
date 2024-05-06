@@ -105,9 +105,9 @@ class GameSession:
         self.players = (p1, p2)
 
     def play_round(self) -> None:
-        send_to_all(self.players,f"Round {self.r}")
-        self.r += 1 #TODO
+        send_to_all(self.players,f"Round {self.r+1}")
         while True:
             round = Round(self.r, self.players)
             round.play_round()
+            self.r += 1 #TODO
             
